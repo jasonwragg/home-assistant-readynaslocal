@@ -54,7 +54,7 @@ The integration needs the following information:
 
 ## Support
 
-Please [open an issue](https://github.com/jasonwragg/readynaslocal/issues/new) for support.
+Please [open an issue](https://github.com/jasonwragg/home-assistant-readynaslocal/issues/new) for support.
 
 ## Contributing
 
