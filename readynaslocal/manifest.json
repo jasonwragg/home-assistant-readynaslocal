@@ -1,0 +1,13 @@
+{
+  "domain": "readynaslocal",
+  "name": "ReadyNAS",
+  "version": "1.0.2",
+  "documentation": "https://github.com/jasonwragg/readynaslocal",
+  "issue_tracker": "https://github.com/jasonwragg/readynaslocal/issues",
+  "requirements": [],
+  "dependencies": [],
+  "iot_class": "local_polling",
+  "config_flow": true,
+  "codeowners": ["@jasonwragg"],
+  "integration_type": "device"
+}
