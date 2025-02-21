@@ -3,3 +3,16 @@ __pycache__/
 .vscode/
 .env
 .DS_Store
+*.egg-info
+*/build/*
+*/dist/*
+
+# misc
+.coverage
+coverage.xml
+
+
+# Home Assistant configuration
+config/*
+!config/configuration.yaml
+config/configuration.yaml
