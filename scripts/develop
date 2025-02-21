@@ -2,18 +2,26 @@
 
 set -e
 
+# Convert Windows line endings if present
+sudo sed -i 's/\r$//' scripts/develop
+
 cd "$(dirname "$0")/.."
 
-# Create config dir if not present
+# Create config dir if not present and set permissions
 if [[ ! -d "${PWD}/config" ]]; then
-    mkdir -p "${PWD}/config"
+    sudo mkdir -p "${PWD}/config"
+    sudo mkdir -p "${PWD}/config/.storage"
+    sudo chown -R $USER:$USER "${PWD}/config"
+    sudo chmod -R 777 "${PWD}/config"
     hass --config "${PWD}/config" --script ensure_config
 fi
 
+# Ensure permissions are correct even if directory exists
+sudo chown -R $USER:$USER "${PWD}/config"
+sudo chmod -R u+rw "${PWD}/config"
+# Ensure permissions are correct even if directory exists
+sudo chmod -R 777 "${PWD}/config"
 # Set the path to custom_components
-## This let's us have the structure we want <root>/custom_components/integration_battery_types
-## while at the same time have Home Assistant configuration inside <root>/config
-## without resulting to symlinks.
 export PYTHONPATH="${PYTHONPATH}:${PWD}/custom_components"
 
 # Start Home Assistant
