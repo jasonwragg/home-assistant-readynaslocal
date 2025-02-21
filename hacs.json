@@ -1,0 +1,10 @@
+{
+    "name": "ReadyNAS Local",
+    "description": "Home Assistant integration for monitoring local ReadyNAS devices.",
+    "domain": "readynaslocal",
+    "documentation": "https://github.com/jasonwragg/home-assistant-readynaslocal",
+    "codeowners": ["@jasonwragg"],
+    "requirements": [],
+    "iot_class": "local_polling",
+    "version": "1.0.2"
+  }
