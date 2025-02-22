@@ -1,7 +1,7 @@
 {
   "domain": "readynaslocal",
   "name": "ReadyNAS",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "documentation": "https://github.com/jasonwragg/readynaslocal",
   "issue_tracker": "https://github.com/jasonwragg/readynaslocal/issues",
   "requirements": [],
