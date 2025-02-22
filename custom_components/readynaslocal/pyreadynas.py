@@ -1,9 +1,10 @@
-import aiohttp
-import xml.etree.ElementTree as ET
-import re
-import base64
 import asyncio
+import base64
+import re
 import ssl
+import xml.etree.ElementTree as ET
+
+import aiohttp
 
 
 class ReadyNASAPI:
@@ -167,14 +168,15 @@ class ReadyNASAPI:
                         timeout=30,
                     ) as response:
                         print(f"📡 Response status: {response.status}")
-                        print(f"📡 Response headers: {response.headers}")
 
-                        if response.status == 401:
-                            print("❌ 401 Unauthorized - Session expired, retrying...")
+                        # Add 403 handling
+                        if response.status in (401, 403):
+                            print(
+                                f"❌ {response.status} Error - Session/CSRF expired, retrying..."
+                            )
                             self.csrf_token = None
                             retries -= 1
                             continue
-
                         response_text = await response.text()
                         if not response_text or response_text.isspace():
                             print("❌ Empty response received!")
@@ -252,8 +254,13 @@ class ReadyNASAPI:
                         ssl=ssl_context,
                         timeout=30,
                     ) as response:
-                        if response.status == 401:
-                            print("❌ 401 Unauthorized - Session expired, retrying...")
+                        print(f"📡 Response status: {response.status}")
+
+                        # Add 403 handling
+                        if response.status in (401, 403):
+                            print(
+                                f"❌ {response.status} Error - Session/CSRF expired, retrying..."
+                            )
                             self.csrf_token = None
                             retries -= 1
                             continue

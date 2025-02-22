@@ -2,9 +2,10 @@
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_USERNAME, CONF_PASSWORD, CONF_SSL
-from .pyreadynas import ReadyNASAPI
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_SSL, CONF_USERNAME
+
 from .const import DOMAIN  # Add DOMAIN import
+from .pyreadynas import ReadyNASAPI
 
 
 class ReadyNASConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -14,7 +15,6 @@ class ReadyNASConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
-        errors = {}
 
         if user_input is None:
             return self.async_show_form(
@@ -66,7 +66,7 @@ class ReadyNASConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 title=f"ReadyNAS ({user_input[CONF_HOST]})", data=user_input
             )
 
-        except Exception as ex:
+        except Exception:
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema(
