@@ -9,7 +9,7 @@ from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN
 from .pyreadynas import ReadyNASAPI
 
-PLATFORMS = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -54,6 +54,7 @@ class ReadyNASShutdownButton(ButtonEntity):
         self._api = api
         self._attr_name = f"{name} Shutdown"
         self._attr_unique_id = f"{name.lower()}_shutdown"
+        self.icon = "mdi:power"
         self._attr_entity_category = EntityCategory.CONFIG
 
     async def async_press(self) -> None:
