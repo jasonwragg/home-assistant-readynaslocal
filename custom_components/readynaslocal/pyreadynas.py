@@ -404,3 +404,121 @@ class ReadyNASAPI:
             except aiohttp.ClientError as e:
                 _LOGGER.error(f"❌ Error sending shutdown command: {e}")
                 return False
+
+    async def get_fan_mode(self):
+        """Get current fan mode."""
+        _LOGGER.debug("🚀 DEBUG: Entering `get_fan_mode()` function")
+
+        # Add retry logic
+        retries = 3
+        while retries > 0:
+            if not self.csrf_token:
+                _LOGGER.debug("🔍 No CSRF token found, fetching a new one...")
+                if not await self._get_csrf_token():
+                    _LOGGER.error("❌ Failed to get CSRF token")
+                    retries -= 1
+                    continue
+
+            xml_payload = """<?xml version="1.0" encoding="UTF-8"?>
+                <xs:nml xmlns:xs="http://www.netgear.com/protocol/transaction/NMLSchema-0.9" xmlns="urn:netgear:nas:readynasd" src="dpv_1740323925000" dst="nas">
+                    <xs:transaction id="njl_id_2153">
+                        <xs:get id="njl_id_2152" resource-id="FanConfig" resource-type="System">
+                    </xs:get>
+                    </xs:transaction>
+                </xs:nml>"""
+
+            headers = {
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Authorization": f"Basic {await self._encode_credentials()}",
+                "csrfpId": self.csrf_token,
+            }
+
+            ssl_context = ssl.SSLContext()
+            if self.ignore_ssl_errors:
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        self.url,
+                        headers=headers,
+                        data=xml_payload,
+                        ssl=ssl_context,
+                        timeout=30,
+                    ) as response:
+                        _LOGGER.debug(f"📡 Response status: {response.status}")
+
+                        if response.status in (401, 403):
+                            _LOGGER.error(
+                                f"❌ {response.status} Error - Session/CSRF expired, retrying..."
+                            )
+                            self.csrf_token = None
+                            retries -= 1
+                            continue
+
+                        response_text = await response.text()
+                        if not response_text or response_text.isspace():
+                            _LOGGER.error("❌ Empty response received!")
+                            retries -= 1
+                            await asyncio.sleep(1)
+                            continue
+
+                        try:
+                            root = ET.fromstring(response_text)
+                            fan_config = root.find(".//FanConfig")
+                            if fan_config is not None:
+                                return fan_config.get("mode", "unknown")
+                            _LOGGER.error("❌ No fan config found in response")
+                            return "unknown"
+                        except ET.ParseError as e:
+                            _LOGGER.error(f"❌ XML parsing error: {e}")
+                            _LOGGER.debug(
+                                f"📜 Problematic XML content: {response_text[:200]}..."
+                            )
+
+            except aiohttp.ClientError as e:
+                _LOGGER.error(f"❌ Error fetching fan mode: {e}")
+                retries -= 1
+                await asyncio.sleep(1)
+                continue
+
+            retries -= 1
+            await asyncio.sleep(1)
+
+        _LOGGER.error("❌ All retry attempts failed")
+        return "unknown"
+
+    async def set_fan_mode(self, mode):
+        """Set fan mode to cool, balanced, or quiet."""
+        if mode not in ["cool", "balanced", "quiet"]:
+            raise ValueError("Invalid fan mode. Must be 'cool', 'balanced', or 'quiet'")
+
+        xml_payload = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <xs:nml xmlns:xs="http://www.netgear.com/protocol/transaction/NMLSchema-0.9" xmlns="urn:netgear:nas:readynasd" src="dpv_1740323925000" dst="nas">
+                <xs:transaction id="njl_id_2347">
+                    <xs:set id="njl_id_2346" resource-id="FanConfig" resource-type="System"><FanConfig mode="{mode}"/></xs:set>
+                </xs:transaction>
+            </xs:nml>"""
+
+        headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Authorization": f"Basic {await self._encode_credentials()}",
+            "csrfpId": self.csrf_token,
+        }
+
+        ssl_context = ssl.SSLContext()
+        if self.ignore_ssl_errors:
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self.url,
+                headers=headers,
+                data=xml_payload,
+                ssl=ssl_context,
+            ) as response:
+                return response.status == 200

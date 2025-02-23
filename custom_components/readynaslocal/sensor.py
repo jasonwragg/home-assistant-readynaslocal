@@ -183,6 +183,7 @@ class ReadyNASSensor(SensorEntity):
         """Initialize the sensor."""
         self.coordinator = coordinator
         self.sensor_key = sensor_key
+        self.icon = "mdi:thermometer"   # Add this line for the icon
         self._attr_name = name  # Just use the name without prefix
         self._attr_unique_id = (
             f"readynas_{self.coordinator.config_entry.data['host']}_{sensor_key}"
@@ -194,10 +195,12 @@ class ReadyNASSensor(SensorEntity):
         if "temperature" in sensor_key:
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_native_unit_of_measurement = "°C"
+            self._attr_icon = "mdi:thermometer"  # Add this line for the icon
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif "fan_speed" in sensor_key:
             self._attr_device_class = None  # Fan speed is a number
             self._attr_native_unit_of_measurement = "RPM"
+            self._attr_icon = "mdi:fan"  # Add this line for the icon
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif "capacity" in sensor_key or "used" in sensor_key or "free" in sensor_key:
             self._attr_device_class = SensorDeviceClass.DATA_SIZE

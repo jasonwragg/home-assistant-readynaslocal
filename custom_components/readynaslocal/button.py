@@ -1,12 +1,14 @@
 """Button for ReadyNAS integration."""
 
 from __future__ import annotations
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN  # Add DOMAIN import
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN  # Add DOMAIN import
 
 
 async def async_setup_entry(
@@ -28,8 +30,9 @@ class ReadyNASShutdownButton(ButtonEntity):
     def __init__(self, api, entry) -> None:
         """Initialize the button."""
         self._api = api
-        self._attr_name = f"ReadyNAS {entry.data['host']} Shutdown"
+        self._attr_name = "Shutdown"
         self._attr_unique_id = f"readynas_{entry.data['host']}_shutdown"
+        self.icon = "mdi:power"
         self._attr_device_info = {
             "identifiers": {
                 (DOMAIN, f"readynas_{entry.data['host']}")
