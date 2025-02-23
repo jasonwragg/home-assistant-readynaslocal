@@ -1,7 +1,7 @@
 {
   "domain": "readynaslocal",
   "name": "ReadyNAS",
-  "version": "1.0.5",
+  "version": "1.1.1",
   "documentation": "https://github.com/jasonwragg/home-assistant-readynaslocal",
   "issue_tracker": "https://github.com/jasonwragg/home-assistant-readynaslocal/issues",
   "requirements": [],
