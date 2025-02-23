@@ -20,6 +20,13 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Latest version: $VERSION"
 
+      - name: Ensure tag does not already exist
+        run: |
+          if git rev-parse $VERSION >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists. Exiting."
+            exit 1
+          fi
+
       - name: Extract latest changelog section
         id: extract_changelog
         run: |
@@ -27,6 +34,13 @@ jobs:
           echo "CHANGELOG<<EOF" >> $GITHUB_ENV
           cat release_notes.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+
+      - name: Create Git tag
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git tag $VERSION
+          git push origin $VERSION
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
