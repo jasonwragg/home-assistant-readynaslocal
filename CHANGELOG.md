@@ -1,3 +1,5 @@
+## v1.1.1
+- Updated github action release file.
 ## v1.1.0
 
 - Added binary sensor to show health of volume.
