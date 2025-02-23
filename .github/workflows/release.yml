@@ -1,0 +1,40 @@
+name: Create Release on Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract latest version from CHANGELOG.md
+        id: extract_version
+        run: |
+          VERSION=$(grep -oP '(?<=## )v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | head -1)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Latest version: $VERSION"
+
+      - name: Extract latest changelog section
+        id: extract_changelog
+        run: |
+          awk '/^## v[0-9]+\.[0-9]+\.[0-9]+/ {if (p) exit; p=1} p' CHANGELOG.md | tail -n +2 > release_notes.md
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          cat release_notes.md >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: ${{ env.CHANGELOG }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
