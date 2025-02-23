@@ -4,15 +4,21 @@ import logging
 import time
 from datetime import timedelta
 
-from homeassistant.core import HomeAssistant  # Add this import
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry  # Add this import
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.core import HomeAssistant  # Add this import
+from homeassistant.helpers.entity import (
+    DeviceInfo,
+    EntityCategory,  # Add this import at the top
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
 from .const import DOMAIN  # Add DOMAIN import
 from .pyreadynas import ReadyNASAPI
-from homeassistant.helpers.entity import EntityCategory  # Add this import at the top
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,16 +190,19 @@ class ReadyNASSensor(SensorEntity):
         self._attr_device_info = DeviceInfo(**device_info) if device_info else None
         self._attr_native_unit_of_measurement = unit if unit else None
 
-        # ✅ Assign correct `device_class`
+        # ✅ Assign correct `device_class` based on sensor key
         if "temperature" in sensor_key:
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_native_unit_of_measurement = "°C"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif "fan_speed" in sensor_key:
-            self._attr_device_class = SensorDeviceClass.SPEED
+            self._attr_device_class = None  # Fan speed is a number
             self._attr_native_unit_of_measurement = "RPM"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif "capacity" in sensor_key or "used" in sensor_key or "free" in sensor_key:
             self._attr_device_class = SensorDeviceClass.DATA_SIZE
             self._attr_native_unit_of_measurement = "GB"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif "health" in sensor_key or "status" in sensor_key:
             self._attr_device_class = None  # Status/health is a string
         elif "model" in sensor_key or "model" in sensor_key:
