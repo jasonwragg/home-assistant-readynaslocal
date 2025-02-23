@@ -8,10 +8,14 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow pushing tags
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensure all tags are fetched
 
       - name: Extract latest version from CHANGELOG.md
         id: extract_version
@@ -41,6 +45,8 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git tag $VERSION
           git push origin $VERSION
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
