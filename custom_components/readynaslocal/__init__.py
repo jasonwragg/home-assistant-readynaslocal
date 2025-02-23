@@ -9,7 +9,7 @@ from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN
 from .pyreadynas import ReadyNASAPI
 
-PLATFORMS = [Platform.BUTTON, Platform.SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
