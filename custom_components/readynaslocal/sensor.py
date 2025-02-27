@@ -183,7 +183,7 @@ class ReadyNASSensor(SensorEntity):
         """Initialize the sensor."""
         self.coordinator = coordinator
         self.sensor_key = sensor_key
-        self.icon = "mdi:thermometer"   # Add this line for the icon
+        self.icon = "mdi:thermometer"  # Add this line for the icon
         self._attr_name = name  # Just use the name without prefix
         self._attr_unique_id = (
             f"readynas_{self.coordinator.config_entry.data['host']}_{sensor_key}"

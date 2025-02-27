@@ -45,6 +45,9 @@ async def async_setup_entry(
         "model": "ReadyNAS",
     }
     async_add_entities([ReadyNASHealthSensor(coordinator, entry, device_info)], True)
+    async_add_entities(
+        [ReadyNASVolumeLowSpaceSensor(coordinator, entry, device_info)], True
+    )
 
 
 async def async_update_data(hass: HomeAssistant, entry: ConfigEntry, api):
@@ -63,7 +66,10 @@ async def async_update_data(hass: HomeAssistant, entry: ConfigEntry, api):
         if health_info and isinstance(health_info, list) and health_info:
             # Get the first volume's health status
             volume = health_info[0]  # Get first volume
-            data = {"health": volume.get("health", "unknown")}
+            data = {
+                "health": volume.get("health", "unknown"),
+                "volumes": health_info,  # Include the full volumes list
+            }
             _LOGGER.debug("Returning data: %s", data)  # Add debug logging
             return data
 
@@ -73,6 +79,50 @@ async def async_update_data(hass: HomeAssistant, entry: ConfigEntry, api):
     except Exception as err:
         _LOGGER.error("Error updating ReadyNAS data: %s", err)
         return None
+
+
+class ReadyNASVolumeLowSpaceSensor(CoordinatorEntity, BinarySensorEntity):
+    """Binary sensor for ReadyNAS volume low space status."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator, config_entry, device_info):
+        """Initialize the binary sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{config_entry.entry_id}_volume_low_space"
+        self._attr_name = "Volume Low Space"
+        self._attr_device_info = DeviceInfo(**device_info) if device_info else None
+
+    @property
+    def is_on(self):
+        """Return True if the volume space is low."""
+        if not self.coordinator.data or "volumes" not in self.coordinator.data:
+            return None
+
+        # Get first volume's data
+        if self.coordinator.data["volumes"]:
+            volume = self.coordinator.data["volumes"][0]
+            used_percentage = volume.get("used_percentage", 0)
+            # Return True if used percentage is above 90%
+            return used_percentage > 90 if used_percentage is not None else None
+
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        if not self.coordinator.data or "volumes" not in self.coordinator.data:
+            return {}
+
+        if self.coordinator.data["volumes"]:
+            volume = self.coordinator.data["volumes"][0]
+            return {
+                "used_percentage": round(volume.get("used_percentage", 0), 1),
+                "free_gb": round(volume.get("free_gb", 0), 2),
+            }
+        return {}
 
 
 class ReadyNASHealthSensor(CoordinatorEntity, BinarySensorEntity):
