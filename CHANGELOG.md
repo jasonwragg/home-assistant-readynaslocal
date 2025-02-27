@@ -1,5 +1,11 @@
+## v1.1.2
+
+- Added binary sensor to indicate less than 10% free space on the volume.
+
 ## v1.1.1
+
 - Updated github action release file.
+
 ## v1.1.0
 
 - Added binary sensor to show health of volume.
