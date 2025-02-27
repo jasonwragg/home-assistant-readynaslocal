@@ -6,10 +6,27 @@ on:
       - main
 
 jobs:
-  create-release:
+  check-changes:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Allow pushing tags
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            code:
+              - '!**.md'
+              - '!.github/**'
+              - '!docs/**'
+              - 'custom_components/**'
+              - 'tests/**'
+
+  create-release:
+    needs: check-changes
+    if: needs.check-changes.outputs.code_changed == 'true'
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
