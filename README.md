@@ -3,7 +3,11 @@
 ![HA Integration](https://img.shields.io/badge/Home%20Assistant-Custom%20Component-blue)
 
 A Home Assistant custom integration for NETGEAR ReadyNAS devices. Control and monitor your NAS directly through Home Assistant.
+## Compatibility
 
+- You must have ReadyNAS OS v9.6.3 or newer.
+- It has only been tested on ReadyNAS 104 & ReadyNAS Ultra 2 so far.
+  
 ## Features
 
 - Monitor disk status and temperature
