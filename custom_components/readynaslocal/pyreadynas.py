@@ -90,6 +90,14 @@ class ReadyNASAPI:
         else:
             _LOGGER.error("❌ No volume data retrieved!")
 
+        # Get OS Data
+        os_data = await self.get_os_info()
+        if os_data:
+            _LOGGER.debug(f"📊 OS_Data data retrieved: {os_data}")
+            health_data["os_data"] = os_data
+        else:
+            _LOGGER.error("❌ No os_data data retrieved!")
+
         return health_data
 
     async def parse_health_info(self, xml_data):
@@ -125,6 +133,88 @@ class ReadyNASAPI:
                 parsed_data["disks"].append(disk_data)
 
         return parsed_data
+
+    async def get_os_info(self):
+        """Get OS data from the NAS."""
+        _LOGGER.debug("🚀 DEBUG: Entering `get_os_info()` function")
+
+        if not self.csrf_token:
+            _LOGGER.debug("🔍 No CSRF token found, fetching a new one...")
+            if not await self._get_csrf_token():
+                print("❌ Failed to get CSRF token")
+
+        headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Authorization": f"Basic {await self._encode_credentials()}",
+            "csrfpId": self.csrf_token,
+        }
+
+        xml_payload = """<?xml version="1.0" encoding="UTF-8"?>             <xs:nml xmlns:xs="http://www.netgear.com/protocol/transaction/NMLSchema-0.9" xmlns="urn:netgear:nas:readynasd" src="dpv_1740683609000" dst="nas">                <xs:transaction id="njl_id_265">                    <xs:get id="njl_id_264" resource-id="SystemInfo" resource-type="SystemInfo"></xs:get>                </xs:transaction>            </xs:nml>"""
+
+        ssl_context = ssl.SSLContext()
+        if self.ignore_ssl_errors:
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                _LOGGER.debug(f"🌐 Making request to URL: {self.url}")
+                async with session.post(
+                    self.url,
+                    headers=headers,
+                    data=xml_payload,
+                    ssl=ssl_context,
+                    timeout=30,
+                ) as response:
+                    _LOGGER.debug(f"📡 Response status: {response.status}")
+
+                    # Add 403 handling
+                    if response.status in (401, 403):
+                        _LOGGER.error(
+                            f"❌ {response.status} Error - Session/CSRF expired, retrying..."
+                        )
+                        self.csrf_token = None
+
+                    response_text = await response.text()
+                    if not response_text or response_text.isspace():
+                        _LOGGER.error("❌ Empty response received!")
+
+                    _LOGGER.debug(f"📜 Full XML Response: {response_text}")
+
+                    try:
+                        data = await self.parse_os_info(response_text)
+                        if data:
+                            return data
+                    except ET.ParseError as e:
+                        _LOGGER.error(f"❌ XML parsing error: {e}")
+                        _LOGGER.error(
+                            f"❌ Problematic XML content: {response_text[:200]}..."
+                        )
+
+            except aiohttp.ClientError as e:
+                _LOGGER.error(f"❌ Error fetching ReadyNAS health info: {e}")
+
+        _LOGGER.error("❌ All retry attempts failed")
+        return None
+
+    async def parse_os_info(self, xml_data):
+        """Parse ReadyNAS XML OS data and extract key metrics asynchronously."""
+        root = ET.fromstring(xml_data)
+
+        os_data = {"model": None, "firmware_name": None, "firmware_version": None, "serial_number": None, "uptime": None, "mac_address": None}
+
+        for system_info in root.findall(".//SystemInfo"):
+            os_data = {
+                "model": system_info.findtext("Model", "Unknown"),
+                "firmware_name": system_info.findtext("Firmware_Name", "Unknown"),
+                "firmware_version": system_info.findtext("Firmware_Version", "Unknown"),
+                "serial_number": system_info.findtext("Serial", "Unknown"),
+                "uptime": system_info.findtext("System_Uptime", "Unknown"),
+                "mac_address": system_info.findtext("MAC_Address", "Unknown"),
+            }
+
+        return os_data
 
     async def _get_basic_health(self):
         """Get basic health information from the NAS."""
