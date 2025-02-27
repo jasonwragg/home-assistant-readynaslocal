@@ -46,7 +46,9 @@ async def async_setup_entry(
         "identifiers": {(DOMAIN, f"readynas_{host}")},
         "name": f"ReadyNAS ({host})",
         "manufacturer": "NETGEAR",
-        "model": "ReadyNAS",
+        "model": coordinator.data.get("os_data", {}).get("model", "ReadyNAS"),
+        "sw_version": coordinator.data.get("os_data", {}).get("firmware_version"),
+        "serial_number": coordinator.data.get("os_data", {}).get("serial_number"),
     }
 
     # Add basic sensors
@@ -62,7 +64,13 @@ async def async_setup_entry(
             device_info=device_info,
         )
     )
-
+    # Add the os info sensors
+    for os in coordinator.data.get("os_data", {}):
+        entities.append(
+            ReadyNASSystemOSInfoSensor(
+                coordinator, os, os.capitalize(), None, device_info
+            )
+        )
     # Add disk sensors - one per disk with attributes
     for idx, disk in enumerate(coordinator.data.get("disks", [])):
         entities.append(
@@ -81,6 +89,46 @@ async def async_setup_entry(
             )
         )
 
+        # Add volume metric sensors
+        volume_metrics = [
+            (
+                "capacity_gb",
+                "Capacity",
+                SensorDeviceClass.DATA_SIZE,
+                "GB",
+                "mdi:database",
+            ),
+            (
+                "free_gb",
+                "Free Space",
+                SensorDeviceClass.DATA_SIZE,
+                "GB",
+                "mdi:database-check",
+            ),
+            (
+                "used_gb",
+                "Used Space",
+                SensorDeviceClass.DATA_SIZE,
+                "GB",
+                "mdi:database-export",
+            ),
+            ("used_percentage", "Used Percentage", None, "%", "mdi:percent"),
+            ("raid_level", "RAID Level", None, None, "mdi:nas"),
+        ]
+
+        for metric, name, device_class, unit, icon in volume_metrics:
+            entities.append(
+                ReadyNASVolumeMetricSensor(
+                    coordinator=coordinator,
+                    volume_name=volume["name"],
+                    metric=metric,
+                    name=name,
+                    device_class=device_class,
+                    unit=unit,
+                    icon=icon,
+                    device_info=device_info,
+                )
+            )
     _LOGGER.info(f"🚀 Registering {len(entities)} sensors for {host}")
     async_add_entities(entities, True)
 
@@ -101,6 +149,10 @@ async def async_update_data(hass: HomeAssistant, entry: ConfigEntry, api: ReadyN
         if not data:
             _LOGGER.error("No data received from ReadyNAS API")
             raise UpdateFailed("Empty response from ReadyNAS")
+
+        _LOGGER.debug(f"Volume data received: {data.get('volumes', [])}")
+        duration = time.time() - start_time
+        _LOGGER.debug(f"✅ Update completed in {duration:.3f} seconds")
 
         duration = time.time() - start_time
         _LOGGER.debug(
@@ -151,10 +203,20 @@ class ReadyNASDiskSensor(SensorEntity):
             return {}
 
         disk_data = self.coordinator.data["disks"][self.disk_index]
+        capacity_gb = disk_data.get("capacity", 0) / (1024 * 1024 * 1024)  # bytes to GB
+
+        # Convert to TB if over 1024 GB
+        if capacity_gb > 1024:
+            capacity = round(capacity_gb / 1024, 2)
+            capacity_unit = "TB"
+        else:
+            capacity = round(capacity_gb, 2)
+            capacity_unit = "GB"
+
         return {
             "temperature": disk_data.get("temperature"),
             "model": disk_data.get("model", "Unknown"),
-            "capacity_gb": round(disk_data.get("capacity", 0) / 1e9, 2),
+            f"capacity_{capacity_unit.lower()}": capacity,
         }
 
     @property
@@ -350,6 +412,170 @@ class ReadyNASVolumeSensor(SensorEntity):
                     "raid_configs": volume["raid_configs"],
                 }
         return {}
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class ReadyNASSystemOSInfoSensor(SensorEntity):
+    """Representation of a ReadyNAS system OS info sensor."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, sensor_key, name, unit, device_info=None) -> None:
+        """Initialize the sensor."""
+        self.coordinator = coordinator
+        self.sensor_key = sensor_key
+        self.icon = "mdi:thermometer"  # Add this line for the icon
+        self._attr_name = name  # Just use the name without prefix
+        self._attr_unique_id = (
+            f"readynas_{self.coordinator.config_entry.data['host']}_{sensor_key}"
+        )
+        self._attr_device_info = DeviceInfo(**device_info) if device_info else None
+        self._attr_native_unit_of_measurement = unit if unit else None
+
+        # ✅ Assign correct `device_class` based on sensor key
+        if "model" in sensor_key:
+            self._attr_device_class = None
+            self._attr_native_unit_of_measurement = unit
+            self._attr_icon = "mdi:nas"  # Add this line for the icon
+            self._attr_state_class = None
+        elif "serial_number" in sensor_key:
+            self._attr_icon = "mdi:counter"
+            self._attr_name = "Serial Number"
+            self._attr_state_class = None
+        elif "uptime" in sensor_key:
+            self._attr_name = "Uptime"
+            self._attr_icon = "mdi:clock"
+            self._attr_device_class = None
+            self._attr_state_class = None
+        elif "mac_address" in sensor_key:
+            self._attr_icon = "mdi:lan"
+            self._attr_name = "Mac Address"
+            self._attr_device_class = None  # Status/health is a string
+        elif "firmware_name" in sensor_key:
+            self._attr_device_class = None  # Status/health is a string
+            self._attr_icon = "mdi:package-variant-closed"
+            self._attr_name = "OS Name"
+        elif "firmware_version" in sensor_key:
+            self._attr_device_class = None  # Status/health is a string
+            self._attr_name = "Firmware Version"
+            self._attr_icon = "mdi:package-variant-closed"
+
+    @property
+    def should_poll(self):
+        """No need to poll. Coordinator notifies entity of updates."""
+        return False
+
+    @property
+    def available(self):
+        """Return if entity is available."""
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self):
+        """Return the sensor value."""
+        if not self.coordinator.data:
+            _LOGGER.warning("⚠️ Warning: No data available for {self._attr_name}")
+            _LOGGER.warning(
+                f"⚠️ This is the os data: {self.coordinator.data.get('os_data', {})}"
+            )
+        return self.coordinator.data.get("os_data", {}).get(self.sensor_key)
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class ReadyNASVolumeMetricSensor(SensorEntity):
+    """Representation of a ReadyNAS volume metric sensor."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator,
+        volume_name,
+        metric,
+        name,
+        device_class,
+        unit,
+        icon,
+        device_info=None,
+    ):
+        """Initialize the volume metric sensor."""
+        self.coordinator = coordinator
+        self._volume_name = volume_name
+        self._metric = metric
+        self._attr_name = f"Volume {volume_name} {name}"
+        self._attr_unique_id = f"readynas_{coordinator.config_entry.data['host']}_volume_{volume_name}_{metric}"
+        self._attr_device_info = DeviceInfo(**device_info) if device_info else None
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+        self._attr_icon = icon
+        if device_class == SensorDeviceClass.DATA_SIZE:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        if not self.coordinator.data or "volumes" not in self.coordinator.data:
+            _LOGGER.debug(f"No data available for {self._attr_name}")
+            return None
+
+        for volume in self.coordinator.data["volumes"]:
+            if volume["name"] == self._volume_name:
+                value = volume.get(self._metric)
+                _LOGGER.debug(f"Raw value for {self._attr_name}: {value}")
+
+                if value is None:
+                    return None
+
+                # Handle percentage specifically
+                if self._metric == "used_percentage":
+                    converted = round(value / 1000, 1)
+                    _LOGGER.debug(f"Converting percentage {value} to {converted}%")
+                    return converted
+
+                # Handle data size metrics
+                if self._metric in ["used_gb", "free_gb", "capacity_gb"]:
+                    # Convert KB to GB if needed
+                    if self._metric == "used_gb":
+                        # Convert KB to GB
+                        value = value / (1024)  # KB to GB
+                        _LOGGER.debug(f"Converted KB to GB: {value}")
+
+                    # Now handle GB to TB conversion if needed
+                    if value >= 1000:  # If 1000GB or more, show as TB
+                        self._attr_native_unit_of_measurement = "TB"
+                        converted = round(value / 1024, 2)
+                        _LOGGER.debug(f"Converting {value}GB to {converted}TB")
+                        return converted
+                    else:
+                        self._attr_native_unit_of_measurement = "GB"
+                        converted = round(value, 2)
+                        _LOGGER.debug(f"Keeping in GB: {converted}")
+                        return converted
+
+                return value
+        return None
+
+    @property
+    def should_poll(self):
+        """No need to poll. Coordinator notifies entity of updates."""
+        return False
+
+    @property
+    def available(self):
+        """Return if entity is available."""
+        return self.coordinator.last_update_success
 
     async def async_added_to_hass(self):
         """Register callbacks."""

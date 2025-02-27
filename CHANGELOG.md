@@ -1,3 +1,11 @@
+## v1.2.0
+
+- Added Model, Serial number and Firmware version to the device.
+- Added OS Version to sensors
+- Added Uptime sensor
+- Added Mac Address sensor
+- Added OS Name sensor
+
 ## v1.1.2
 
 - Added binary sensor to indicate less than 10% free space on the volume.
