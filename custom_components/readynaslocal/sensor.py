@@ -46,7 +46,9 @@ async def async_setup_entry(
         "identifiers": {(DOMAIN, f"readynas_{host}")},
         "name": f"ReadyNAS ({host})",
         "manufacturer": "NETGEAR",
-        "model": "ReadyNAS",
+        "model": coordinator.data.get("os_data", {}).get("model", "ReadyNAS"),
+        "sw_version": coordinator.data.get("os_data", {}).get("firmware_version"),
+        "serial_number": coordinator.data.get("os_data", {}).get("serial_number"),
     }
 
     # Add basic sensors
@@ -62,7 +64,13 @@ async def async_setup_entry(
             device_info=device_info,
         )
     )
-
+    # Add the os info sensors
+    for os in coordinator.data.get("os_data", {}):
+        entities.append(
+            ReadyNASSystemOSInfoSensor(
+                coordinator, os, os.capitalize(), None, device_info
+            )
+        )
     # Add disk sensors - one per disk with attributes
     for idx, disk in enumerate(coordinator.data.get("disks", [])):
         entities.append(
@@ -404,6 +412,79 @@ class ReadyNASVolumeSensor(SensorEntity):
                     "raid_configs": volume["raid_configs"],
                 }
         return {}
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class ReadyNASSystemOSInfoSensor(SensorEntity):
+    """Representation of a ReadyNAS system OS info sensor."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, sensor_key, name, unit, device_info=None) -> None:
+        """Initialize the sensor."""
+        self.coordinator = coordinator
+        self.sensor_key = sensor_key
+        self.icon = "mdi:thermometer"  # Add this line for the icon
+        self._attr_name = name  # Just use the name without prefix
+        self._attr_unique_id = (
+            f"readynas_{self.coordinator.config_entry.data['host']}_{sensor_key}"
+        )
+        self._attr_device_info = DeviceInfo(**device_info) if device_info else None
+        self._attr_native_unit_of_measurement = unit if unit else None
+
+        # ✅ Assign correct `device_class` based on sensor key
+        if "model" in sensor_key:
+            self._attr_device_class = None
+            self._attr_native_unit_of_measurement = unit
+            self._attr_icon = "mdi:nas"  # Add this line for the icon
+            self._attr_state_class = None
+        elif "serial_number" in sensor_key:
+            self._attr_icon = "mdi:counter"
+            self._attr_name = "Serial Number"
+            self._attr_state_class = None
+        elif "uptime" in sensor_key:
+            self._attr_name = "Uptime"
+            self._attr_icon = "mdi:clock"
+            self._attr_device_class = None
+            self._attr_state_class = None
+        elif "mac_address" in sensor_key:
+            self._attr_icon = "mdi:lan"
+            self._attr_name = "Mac Address"
+            self._attr_device_class = None  # Status/health is a string
+        elif "firmware_name" in sensor_key:
+            self._attr_device_class = None  # Status/health is a string
+            self._attr_icon = "mdi:package-variant-closed"
+            self._attr_name = "OS Name"
+        elif "firmware_version" in sensor_key:
+            self._attr_device_class = None  # Status/health is a string
+            self._attr_name = "Firmware Version"
+            self._attr_icon = "mdi:package-variant-closed"
+
+    @property
+    def should_poll(self):
+        """No need to poll. Coordinator notifies entity of updates."""
+        return False
+
+    @property
+    def available(self):
+        """Return if entity is available."""
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self):
+        """Return the sensor value."""
+        if not self.coordinator.data:
+            _LOGGER.warning("⚠️ Warning: No data available for {self._attr_name}")
+            _LOGGER.warning(
+                f"⚠️ This is the os data: {self.coordinator.data.get('os_data', {})}"
+            )
+        return self.coordinator.data.get("os_data", {}).get(self.sensor_key)
 
     async def async_added_to_hass(self):
         """Register callbacks."""
