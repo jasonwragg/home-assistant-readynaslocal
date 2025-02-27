@@ -1,6 +1,7 @@
 ## v1.1.2
 
 - Added binary sensor to indicate less than 10% free space on the volume.
+- Fixed release actions.
 
 ## v1.1.1
 
