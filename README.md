@@ -20,6 +20,9 @@ A Home Assistant custom integration for NETGEAR ReadyNAS devices. Control and mo
 ## Installation
 
 ### **HACS Installation**
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jasonwragg&repository=home-assistant-readynaslocal&category=integration)
+
 1. Open **HACS** in Home Assistant.
 2. Go to **Integrations** → Click **+**.
 3. Add this repository: `https://github.com/jasonwragg/home-assistant-readynaslocal`
