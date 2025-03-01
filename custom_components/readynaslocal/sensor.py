@@ -65,12 +65,30 @@ async def async_setup_entry(
         )
     )
     # Add the os info sensors
-    for os in coordinator.data.get("os_data", {}):
-        entities.append(
-            ReadyNASSystemOSInfoSensor(
-                coordinator, os, os.capitalize(), None, device_info
+    for os_key, os_value in coordinator.data.get("os_data", {}).items():
+        if os_key == "mac_address":
+            # Split multiple MAC addresses
+            mac_addresses = os_value.split(",") if os_value else []
+            for i, mac in enumerate(mac_addresses, 1):
+                entities.append(
+                    ReadyNASSystemOSInfoSensor(
+                        coordinator=coordinator,
+                        sensor_key=f"mac_address_{i}",
+                        name=f"MAC Address {i}",
+                        unit=None,
+                        device_info=device_info,
+                    )
+                )
+        else:
+            entities.append(
+                ReadyNASSystemOSInfoSensor(
+                    coordinator=coordinator,
+                    sensor_key=os_key,
+                    name=os_key.replace("_", " ").title(),
+                    unit=None,
+                    device_info=device_info,
+                )
             )
-        )
     # Add disk sensors - one per disk with attributes
     for idx, disk in enumerate(coordinator.data.get("disks", [])):
         entities.append(
@@ -480,11 +498,23 @@ class ReadyNASSystemOSInfoSensor(SensorEntity):
     def native_value(self):
         """Return the sensor value."""
         if not self.coordinator.data:
-            _LOGGER.warning("⚠️ Warning: No data available for {self._attr_name}")
-            _LOGGER.warning(
-                f"⚠️ This is the os data: {self.coordinator.data.get('os_data', {})}"
-            )
-        return self.coordinator.data.get("os_data", {}).get(self.sensor_key)
+            return None
+
+        os_data = self.coordinator.data.get("os_data", {})
+
+
+        # Handle MAC address sensors
+        if self.sensor_key.startswith("mac_address_"):
+            try:
+                # Extract index from sensor_key (mac_address_1 -> 1)
+                index = int(self.sensor_key.split("_")[-1]) - 1
+                # Split MAC addresses and get the one at index
+                mac_addresses = os_data.get("mac_address", "").split(",")
+                return mac_addresses[index].strip() if index < len(mac_addresses) else None
+            except (ValueError, IndexError):
+                return None
+
+        return os_data.get(self.sensor_key)
 
     async def async_added_to_hass(self):
         """Register callbacks."""
