@@ -556,11 +556,11 @@ def format_uptime(seconds):
 
         parts = []
         if days > 0:
-            parts.append(f"{days} {'Day' if days == 1 else 'Days'}")
+            parts.append(f"{days} {'day' if days == 1 else 'days'}")
         if hours > 0:
-            parts.append(f"{hours} {'Hour' if hours == 1 else 'Hours'}")
+            parts.append(f"{hours} {'hrs' if hours == 1 else 'hr'}")
         if minutes > 0 and days == 0:  # Only show minutes if less than a day
-            parts.append(f"{minutes} {'Minute' if minutes == 1 else 'Minutes'}")
+            parts.append(f"{minutes} {'mis' if minutes == 1 else 'min'}")
 
         if not parts:
             return "Just Started"
