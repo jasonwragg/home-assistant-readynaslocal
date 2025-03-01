@@ -1,3 +1,6 @@
+## v1.2.2
+- Fixed manifest file
+
 ## v1.2.1
 - Fixed issue with uptime sensor showing second of uptime.
 - Added timestamp and uptime seconds attributes to uptime sensor.
