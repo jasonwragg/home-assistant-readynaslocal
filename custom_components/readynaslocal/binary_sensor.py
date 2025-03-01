@@ -105,8 +105,9 @@ class ReadyNASVolumeLowSpaceSensor(CoordinatorEntity, BinarySensorEntity):
         if self.coordinator.data["volumes"]:
             volume = self.coordinator.data["volumes"][0]
             used_percentage = volume.get("used_percentage", 0)
+            used_converted = round(used_percentage / 1000, 1)
             # Return True if used percentage is above 90%
-            return used_percentage > 90 if used_percentage is not None else None
+            return used_converted > 90 if used_converted is not None else None
 
         return None
 
