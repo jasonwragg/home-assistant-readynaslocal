@@ -1,0 +1,13 @@
+shutdown:
+  name: Shutdown NAS
+  description: Safely shuts down the ReadyNAS device.
+  target:
+    device:
+      integration: readynaslocal
+  fields:
+    device_id:
+      description: The ID of the ReadyNAS device to shutdown
+      required: true
+      selector:
+        device:
+          integration: readynaslocal
