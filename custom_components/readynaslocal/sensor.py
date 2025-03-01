@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -65,12 +65,30 @@ async def async_setup_entry(
         )
     )
     # Add the os info sensors
-    for os in coordinator.data.get("os_data", {}):
-        entities.append(
-            ReadyNASSystemOSInfoSensor(
-                coordinator, os, os.capitalize(), None, device_info
+    for os_key, os_value in coordinator.data.get("os_data", {}).items():
+        if os_key == "mac_address":
+            # Split multiple MAC addresses
+            mac_addresses = os_value.split(",") if os_value else []
+            for i, mac in enumerate(mac_addresses, 1):
+                entities.append(
+                    ReadyNASSystemOSInfoSensor(
+                        coordinator=coordinator,
+                        sensor_key=f"mac_address_{i}",
+                        name=f"MAC Address {i}",
+                        unit=None,
+                        device_info=device_info,
+                    )
+                )
+        else:
+            entities.append(
+                ReadyNASSystemOSInfoSensor(
+                    coordinator=coordinator,
+                    sensor_key=os_key,
+                    name=os_key.replace("_", " ").title(),
+                    unit=None,
+                    device_info=device_info,
+                )
             )
-        )
     # Add disk sensors - one per disk with attributes
     for idx, disk in enumerate(coordinator.data.get("disks", [])):
         entities.append(
@@ -480,17 +498,76 @@ class ReadyNASSystemOSInfoSensor(SensorEntity):
     def native_value(self):
         """Return the sensor value."""
         if not self.coordinator.data:
-            _LOGGER.warning("⚠️ Warning: No data available for {self._attr_name}")
-            _LOGGER.warning(
-                f"⚠️ This is the os data: {self.coordinator.data.get('os_data', {})}"
-            )
-        return self.coordinator.data.get("os_data", {}).get(self.sensor_key)
+            return None
+
+        os_data = self.coordinator.data.get("os_data", {})
+
+        # Handle MAC address sensors
+        if self.sensor_key.startswith("mac_address_"):
+            try:
+                # Extract index from sensor_key (mac_address_1 -> 1)
+                index = int(self.sensor_key.split("_")[-1]) - 1
+                # Split MAC addresses and get the one at index
+                mac_addresses = os_data.get("mac_address", "").split(",")
+                return (
+                    mac_addresses[index].strip() if index < len(mac_addresses) else None
+                )
+            except (ValueError, IndexError):
+                return None
+
+        # Handle uptime formatting
+        if self.sensor_key == "uptime":
+            uptime_seconds = os_data.get(self.sensor_key)
+            return format_uptime(uptime_seconds)
+
+        return os_data.get(self.sensor_key)
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        if self.sensor_key == "uptime":
+            uptime_seconds = self.coordinator.data.get("os_data", {}).get("uptime")
+            if uptime_seconds:
+                # Calculate boot timestamp by subtracting uptime from current time
+                current_time = datetime.now(timezone.utc)
+                boot_timestamp = current_time.timestamp() - float(uptime_seconds)
+                boot_time = datetime.fromtimestamp(boot_timestamp, timezone.utc)
+
+                return {
+                    "boot_time": boot_time.isoformat(),
+                    "uptime_seconds": uptime_seconds,
+                }
+        return None
 
     async def async_added_to_hass(self):
         """Register callbacks."""
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
+
+
+def format_uptime(seconds):
+    """Format uptime into human readable string."""
+    try:
+        seconds = int(seconds)
+        days, remainder = divmod(seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, _ = divmod(remainder, 60)
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days} {'Day' if days == 1 else 'Days'}")
+        if hours > 0:
+            parts.append(f"{hours} {'Hour' if hours == 1 else 'Hours'}")
+        if minutes > 0 and days == 0:  # Only show minutes if less than a day
+            parts.append(f"{minutes} {'Minute' if minutes == 1 else 'Minutes'}")
+
+        if not parts:
+            return "Just Started"
+
+        return " ".join(parts)
+    except (ValueError, TypeError):
+        return None
 
 
 class ReadyNASVolumeMetricSensor(SensorEntity):
