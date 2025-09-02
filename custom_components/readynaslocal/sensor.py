@@ -9,6 +9,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.config_entries import ConfigEntry  # Add this import
 from homeassistant.core import HomeAssistant  # Add this import
 from homeassistant.helpers.entity import (
@@ -133,6 +134,28 @@ async def async_setup_entry(
             ("used_percentage", "Used Percentage", None, "%", "mdi:percent"),
             ("raid_level", "RAID Level", None, None, "mdi:nas"),
         ]
+
+        if volume.get("resilver_progress") is not None:
+            volume_metrics.append(
+                (
+                    "resilver_progress",
+                    "Resilver Progress",
+                    None,
+                    PERCENTAGE,
+                    "mdi:progress-clock",
+                )
+            )
+
+        if volume.get("resilver_time_remaining_min") is not None:
+            volume_metrics.append(
+                (
+                    "resilver_time_remaining_min",
+                    "Resilver Time Remaining",
+                    None,
+                    UnitOfTime.MINUTES,
+                    "mdi:timer-sand",
+                )
+            )
 
         for metric, name, device_class, unit, icon in volume_metrics:
             entities.append(
@@ -428,6 +451,8 @@ class ReadyNASVolumeSensor(SensorEntity):
                     "auto_expand": volume["auto_expand"],
                     "quota_enabled": volume["quota_enabled"],
                     "raid_configs": volume["raid_configs"],
+                    "resilver_progress": volume.get("resilver_progress"),
+                    "resilver_time_remaining_min": volume.get("resilver_time_remaining_min"),
                 }
         return {}
 
@@ -597,7 +622,7 @@ class ReadyNASVolumeMetricSensor(SensorEntity):
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = device_class
         self._attr_icon = icon
-        if device_class == SensorDeviceClass.DATA_SIZE:
+        if device_class == SensorDeviceClass.DATA_SIZE or unit in (PERCENTAGE, UnitOfTime.MINUTES):
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
