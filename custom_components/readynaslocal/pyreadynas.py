@@ -414,6 +414,16 @@ class ReadyNASAPI:
                     == "1",
                     "auto_expand": props.findtext("AutoExpand", "off") == "on",
                     "quota_enabled": props.findtext("Quota", "off") == "on",
+                    "resilver_progress": (
+                        float(props.findtext("ResilverProgress"))
+                        if props.findtext("ResilverProgress")
+                        else None
+                    ),
+                    "resilver_time_remaining_min": (
+                        float(props.findtext("ResilverTimeRemainingInMinutes"))
+                        if props.findtext("ResilverTimeRemainingInMinutes")
+                        else None
+                    ),
                 }
 
                 # Calculate used percentage
