@@ -48,6 +48,9 @@ async def async_setup_entry(
     async_add_entities(
         [ReadyNASVolumeLowSpaceSensor(coordinator, entry, device_info)], True
     )
+    async_add_entities(
+        [ReadyNASResilverInProgressSensor(coordinator, entry, device_info)], True
+    )
 
 
 async def async_update_data(hass: HomeAssistant, entry: ConfigEntry, api):
@@ -124,6 +127,65 @@ class ReadyNASVolumeLowSpaceSensor(CoordinatorEntity, BinarySensorEntity):
                 "free_gb": round(volume.get("free_gb", 0), 2),
             }
         return {}
+
+
+class ReadyNASResilverInProgressSensor(CoordinatorEntity, BinarySensorEntity):
+    """Binary sensor for ReadyNAS resilver progress."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator, config_entry, device_info):
+        """Initialize the binary sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{config_entry.entry_id}_resilver_in_progress"
+        self._attr_name = "Resilver In Progress"
+        self._attr_device_info = DeviceInfo(**device_info) if device_info else None
+
+    @property
+    def is_on(self):
+        """Return True if a resilver operation is currently running."""
+        if not self.coordinator.data or "volumes" not in self.coordinator.data:
+            return None
+
+        for volume in self.coordinator.data["volumes"]:
+            progress = volume.get("resilver_progress")
+            time_remaining = volume.get("resilver_time_remaining_min")
+            if progress is not None or time_remaining is not None:
+                # Consider resilvering active when reported progress is between 0-100
+                if progress is not None and 0 < progress < 100:
+                    return True
+                # Some firmware may only report time remaining
+                if time_remaining is not None and time_remaining > 0:
+                    return True
+        return False
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional resilver attributes."""
+        attributes = {}
+
+        if not self.coordinator.data or "volumes" not in self.coordinator.data:
+            return attributes
+
+        resilver_volumes = []
+        for volume in self.coordinator.data["volumes"]:
+            progress = volume.get("resilver_progress")
+            time_remaining = volume.get("resilver_time_remaining_min")
+            if progress is not None or time_remaining is not None:
+                resilver_volumes.append(
+                    {
+                        "name": volume.get("name"),
+                        "resilver_progress": progress,
+                        "resilver_time_remaining_min": time_remaining,
+                    }
+                )
+
+        if resilver_volumes:
+            attributes["volumes"] = resilver_volumes
+
+        return attributes
 
 
 class ReadyNASHealthSensor(CoordinatorEntity, BinarySensorEntity):

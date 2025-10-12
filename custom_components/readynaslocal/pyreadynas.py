@@ -25,6 +25,32 @@ class ReadyNASAPI:
         self.admin_url = f"{self.protocol}://{self.host}/admin/"
         self.csrf_token = None
         self.session = None
+        self._error_counts = {}
+        self._suppressed_errors = set()
+
+    def _reset_error_counter(self, key):
+        """Reset tracking for a throttled log message."""
+        if key in self._error_counts:
+            self._error_counts.pop(key, None)
+        self._suppressed_errors.discard(key)
+
+    def _log_throttled(self, key, level, message, threshold=2):
+        """Log a message only after it has occurred `threshold` times."""
+        count = self._error_counts.get(key, 0) + 1
+        self._error_counts[key] = count
+
+        if count < threshold:
+            if key not in self._suppressed_errors:
+                _LOGGER.debug(
+                    "Suppressing %s until it occurs %s times: %s",
+                    key,
+                    threshold,
+                    message,
+                )
+                self._suppressed_errors.add(key)
+            return
+
+        _LOGGER.log(level, message)
 
     async def _encode_credentials(self):
         """Encode username and password for Basic Authentication."""
@@ -51,7 +77,11 @@ class ReadyNASAPI:
                     self.admin_url, headers=headers, ssl=ssl_context
                 ) as response:
                     if response.status == 401:
-                        _LOGGER.error("❌ 401 Unauthorized - Check username/password.")
+                        self._log_throttled(
+                            "csrf_unauthorized",
+                            logging.ERROR,
+                            "❌ 401 Unauthorized - Check username/password.",
+                        )
                         return None
 
                     response_text = await response.text()
@@ -61,13 +91,25 @@ class ReadyNASAPI:
                     )
                     if match:
                         self.csrf_token = match.group(1)
+                        self._reset_error_counter("csrf_not_found")
+                        self._reset_error_counter("csrf_fetch_failure")
+                        self._reset_error_counter("csrf_fetch_exception")
+                        self._reset_error_counter("csrf_unauthorized")
                         # print(f"✅ CSRF Token Retrieved: {self.csrf_token}")
                         return self.csrf_token
                     else:
-                        _LOGGER.error("❌ CSRF token not found in response!")
+                        self._log_throttled(
+                            "csrf_not_found",
+                            logging.ERROR,
+                            "❌ CSRF token not found in response!",
+                        )
                         return None
             except aiohttp.ClientError as e:
-                _LOGGER.error(f"❌ Error fetching CSRF token: {e}")
+                self._log_throttled(
+                    "csrf_fetch_exception",
+                    logging.ERROR,
+                    f"❌ Error fetching CSRF token: {e}",
+                )
                 return None
 
     async def get_health_info(self):
@@ -141,7 +183,11 @@ class ReadyNASAPI:
         if not self.csrf_token:
             _LOGGER.debug("🔍 No CSRF token found, fetching a new one...")
             if not await self._get_csrf_token():
-                print("❌ Failed to get CSRF token")
+                self._log_throttled(
+                    "csrf_fetch_failure",
+                    logging.ERROR,
+                    "❌ Failed to get CSRF token",
+                )
 
         headers = {
             "X-Requested-With": "XMLHttpRequest",
@@ -227,7 +273,11 @@ class ReadyNASAPI:
             if not self.csrf_token:
                 _LOGGER.debug("🔍 No CSRF token found, fetching a new one...")
                 if not await self._get_csrf_token():
-                    print("❌ Failed to get CSRF token")
+                    self._log_throttled(
+                        "csrf_fetch_failure",
+                        logging.ERROR,
+                        "❌ Failed to get CSRF token",
+                    )
                     retries -= 1
                     continue
 
@@ -314,7 +364,11 @@ class ReadyNASAPI:
             if not self.csrf_token:
                 _LOGGER.info("🔍 No CSRF token found, fetching a new one...")
                 if not await self._get_csrf_token():
-                    _LOGGER.error("❌ Failed to get CSRF token")
+                    self._log_throttled(
+                        "csrf_fetch_failure",
+                        logging.ERROR,
+                        "❌ Failed to get CSRF token",
+                    )
                     retries -= 1
                     continue
 
@@ -515,7 +569,11 @@ class ReadyNASAPI:
             if not self.csrf_token:
                 _LOGGER.debug("🔍 No CSRF token found, fetching a new one...")
                 if not await self._get_csrf_token():
-                    _LOGGER.error("❌ Failed to get CSRF token")
+                    self._log_throttled(
+                        "csrf_fetch_failure",
+                        logging.ERROR,
+                        "❌ Failed to get CSRF token",
+                    )
                     retries -= 1
                     continue
 
