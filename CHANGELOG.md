@@ -1,3 +1,9 @@
+## v1.3.1
+- Fixed manifest file
+- Throttle noisy CSRF logging for ReadyNAS integration
+- Add resilver in progress binary sensor
+- Add resilver progress sensors for ReadyNAS volumes
+  
 ## v1.2.2
 - Fixed manifest file
 
